@@ -26,17 +26,19 @@ int  rxCount;
 unsigned char state = 0;
 unsigned int cptBase = 0;
 unsigned int  pApp = 0;
+unsigned int checksum;
 
 WiFiServer server(80);
 IPAddress ip(192, 168, 1, 77);
 int UDPport = 5005;
 
 
-#define STATE_0_WAIT_02    0   // Attente du debut de Trame 0x02
-#define STATE_1_WAIT_0A    1   // Attente du debut de ligne 0x0A
-#define STATE_2_ETIQUETTE  2   // Attente de l'etiquette jusque 0x20
-#define STATE_3_DONNEES    3   // Attente des donnees jusque 0x20
-#define STATE_4_WAIT_03    4   // Attente de fin de Trame
+#define STATE_0_WAIT_02       0   // Attente du debut de Trame 0x02
+#define STATE_1_WAIT_0A       1   // Attente du debut de ligne 0x0A
+#define STATE_2_ETIQUETTE     2   // Attente de l'etiquette jusque 0x20
+#define STATE_3_DONNEES       3   // Attente des donnees jusque 0x20
+#define STATE_4_WAIT_CHECKSUM 4   // Attente du checksum
+#define STATE_5_WAIT_0D_03    5   // Attente de fin de Trame
 
 void handleLine(char *etiquette, char *donnees)
 {
@@ -113,6 +115,7 @@ void loop()
                 if (c == 0x0A)
                     {
                     state++;
+                    checksum = 0;
                     rxCount = 0;
                     }
                 if (c == 0x03)
@@ -131,34 +134,51 @@ void loop()
                 {
                     state++;
                     etiquette[rxCount] = 0;
+                    checksum += 9;
                     rxCount = 0;
                 }
                 else
                 {
                     etiquette[rxCount] = c;
                     rxCount = INCREMENT(rxCount);
+                    checksum += c;
                 }
                 break;
             case STATE_3_DONNEES :
                 if (c == 0x09)
                 {
                     state++;
+                    checksum += 9;
                     donnees[rxCount] = 0;
                     handleLine(etiquette, donnees);
                 }
                 else
                 {
                     donnees[rxCount] = c;
+                    checksum += c;
                     rxCount = INCREMENT(rxCount);
                 }
                 break;
-            case STATE_4_WAIT_03:
+            case STATE_4_WAIT_CHECKSUM:
+                checksum = checksum & 63;
+                checksum += 32;
+                if (c == checksum)
+                {
+                    handleLine(etiquette, donnees);
+                }
+                state++;
+                break;
+            case STATE_5_WAIT_0D_03:
                 if (c == 0x0D)
                 {
                     state = 1;
                 }
+                if (c == 0x03)
+                {
+                    state = 0;
+                }
                 break;
-           default:
+            default:
                break;
         }
     }
