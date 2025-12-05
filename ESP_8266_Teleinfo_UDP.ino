@@ -150,7 +150,6 @@ void loop()
                     state++;
                     checksum += 9;
                     donnees[rxCount] = 0;
-                    handleLine(etiquette, donnees);
                 }
                 else
                 {
